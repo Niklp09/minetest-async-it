@@ -1,0 +1,99 @@
+From 928b995218342c3d7119ecda4e3c0eb3213d84f9 Mon Sep 17 00:00:00 2001
+From: Niklp <nik@niklp.net>
+Date: Sat, 1 Jun 2024 21:51:43 +0200
+Subject: [PATCH] Port Illumishroom generation to async mapgen
+
+---
+ decor.lua              | 38 ++++++--------------------------------
+ decor_on_generated.lua | 32 ++++++++++++++++++++++++++++++++
+ 2 files changed, 38 insertions(+), 32 deletions(-)
+ create mode 100644 decor_on_generated.lua
+
+diff --git a/decor.lua b/decor.lua
+index 7596a8b..27ac3cd 100644
+--- a/decor.lua
++++ b/decor.lua
+@@ -756,35 +756,9 @@ if minetest.registered_nodes["default:coral_green"] then
+ 	})
+ end
+ 
+-
+-local random = math.random
+-
+--- Generate Illumishroom in caves on top of coal
+-minetest.register_on_generated(function(minp, maxp)
+-
+-	if minp.y > -30 or maxp.y < -3000 then
+-		return
+-	end
+-
+-	local bpos
+-	local coal = minetest.find_nodes_in_area_under_air(
+-			minp, maxp, "default:stone_with_coal")
+-
+-	for n = 1, #coal do
+-
+-		if random(2) == 1 then
+-
+-			bpos = {x = coal[n].x, y = coal[n].y + 1, z = coal[n].z}
+-
+-			if bpos.y > -3000 and bpos.y < -2000 then
+-				minetest.swap_node(bpos, {name = "ethereal:illumishroom3"})
+-
+-			elseif bpos.y > -2000 and bpos.y < -1000 then
+-				minetest.swap_node(bpos, {name = "ethereal:illumishroom2"})
+-
+-			elseif bpos.y > -1000 and bpos.y < -30 then
+-				minetest.swap_node(bpos, {name = "ethereal:illumishroom"})
+-			end
+-		end
+-	end
+-end)
++-- register async mapgen script
++if minetest.register_mapgen_script then
++	minetest.register_mapgen_script(minetest.get_modpath("ethereal") .. "/decor_on_generated.lua")
++else
++	dofile(minetest.get_modpath("ethereal") .. "/decor_on_generated.lua")
++end
+diff --git a/decor_on_generated.lua b/decor_on_generated.lua
+new file mode 100644
+index 0000000..44d09be
+--- /dev/null
++++ b/decor_on_generated.lua
+@@ -0,0 +1,32 @@
++-- Generate Illumishroom in caves on top of coal
++local function generate(minp, maxp)
++	if minp.y > -30 or maxp.y < -3000 then
++		return
++	end
++
++	local coal = minetest.find_nodes_in_area_under_air(minp, maxp, "default:stone_with_coal")
++
++	for n = 1, #coal do
++		if math.random(2) == 1 then
++			local bpos = {x = coal[n].x, y = coal[n].y + 1, z = coal[n].z}
++
++			if bpos.y > -3000 and bpos.y < -2000 then
++				minetest.set_node(bpos, {name = "ethereal:illumishroom3"})
++			elseif bpos.y > -2000 and bpos.y < -1000 then
++				minetest.set_node(bpos, {name = "ethereal:illumishroom2"})
++			elseif bpos.y > -1000 and bpos.y < -30 then
++				minetest.set_node(bpos, {name = "ethereal:illumishroom"})
++			end
++		end
++	end
++end
++
++if minetest.save_gen_notify then -- async env (5.9+)
++	minetest.register_on_generated(function(vmanip, minp, maxp, blockseed)
++		generate(minp, maxp)
++	end)
++else -- main thread (5.8 and earlier)
++	minetest.register_on_generated(function(minp, maxp, blockseed)
++		generate(minp, maxp)
++	end)
++end
+\ No newline at end of file
+-- 
+2.45.1
+
